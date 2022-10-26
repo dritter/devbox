@@ -41,6 +41,11 @@ func generateForShell(rootPath string, plan *plansdk.ShellPlan) error {
 		return errors.WithStack(err)
 	}
 
+	err = writeFromTemplate(rootPath, plan, "flake.nix")
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
 	for name, content := range plan.GeneratedFiles {
 		filePath := filepath.Join(outPath, name)
 		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
