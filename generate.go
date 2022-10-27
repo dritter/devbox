@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -41,7 +42,7 @@ func generateForShell(rootPath string, plan *plansdk.ShellPlan) error {
 		return errors.WithStack(err)
 	}
 
-	err = writeFromTemplate(rootPath, plan, "flake.nix")
+	err = makeFlakeFile(outPath, plan)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -100,4 +101,34 @@ var templateFuncs = template.FuncMap{
 	"json":     toJSON,
 	"contains": strings.Contains,
 	"debug":    debug.IsEnabled,
+}
+
+func makeFlakeFile(outPath string, plan *plansdk.ShellPlan) error {
+
+	flakeDir := filepath.Join(outPath, "flake")
+	err := writeFromTemplate(flakeDir, plan, "flake.nix")
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// make an empty git repo
+	cmd := exec.Command("git", "-C", flakeDir, "init")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// add the flake.nix file to git
+	cmd = exec.Command("git", "-C", flakeDir, "add", "flake.nix")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
 }
