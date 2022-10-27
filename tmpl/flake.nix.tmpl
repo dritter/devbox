@@ -2,7 +2,13 @@
     description = "A devbox shell";
 
     inputs = {
-        nixpkgs.url = "github:NixOS/nixpkgs";
+        # TODO savil. Ideally this commit-pinning is moved to the flake lockfile
+        #
+        # this is the commit hash pinned in our shell.nix
+        # Commit hash as of 2022-08-16
+        # `git ls-remote https://github.com/nixos/nixpkgs nixos-unstable`
+        nixpkgs.url = "github:NixOS/nixpkgs/af9e00071d0971eb292fd5abef334e66eda3cb69";
+
         flake-utils.url = "github:numtide/flake-utils";
     };
 
