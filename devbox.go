@@ -20,6 +20,7 @@ import (
 	"go.jetpack.io/devbox/debug"
 	"go.jetpack.io/devbox/docker"
 	"go.jetpack.io/devbox/nix"
+	"go.jetpack.io/devbox/pkg/gate"
 	"go.jetpack.io/devbox/planner"
 	"go.jetpack.io/devbox/planner/plansdk"
 	"golang.org/x/exp/slices"
@@ -197,6 +198,7 @@ func (d *Devbox) Shell() error {
 
 	nixShellFilePath := filepath.Join(d.srcDir, ".devbox/gen/shell.nix")
 	shell, err := nix.DetectShell(
+		nix.WithConfigDir(d.srcDir),
 		nix.WithPlanInitHook(strings.Join(plan.ShellInitHook, "\n")),
 		nix.WithProfile(profileDir),
 		nix.WithHistoryFile(filepath.Join(d.srcDir, shellHistoryFile)),
@@ -218,6 +220,7 @@ func (d *Devbox) Shell() error {
 	}
 
 	shell.UserInitHook = d.cfg.Shell.InitHook.String()
+
 	return shell.Run(nixShellFilePath)
 }
 
@@ -373,11 +376,17 @@ func (d *Devbox) applyDevNixDerivation() error {
 		return err
 	}
 
-	cmd := exec.Command("nix-env",
-		"--profile", profileDir,
-		"--install",
-		"-f", filepath.Join(d.srcDir, ".devbox/gen/development.nix"),
-	)
+	var cmd *exec.Cmd
+	if gate.Flakes() {
+		cmd = exec.Command("nix", "profile", "install", "--profile", profileDir, ".devbox/gen/flake")
+	} else {
+		cmd = exec.Command(
+			"nix-env",
+			"--profile", profileDir,
+			"--install",
+			"-f", filepath.Join(d.srcDir, ".devbox/gen/development.nix"),
+		)
+	}
 
 	debug.Log("Running command: %s\n", cmd.Args)
 	_, err = cmd.Output()

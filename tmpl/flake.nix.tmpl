@@ -2,12 +2,10 @@
     description = "A devbox shell";
 
     inputs = {
-        # TODO savil. Ideally this commit-pinning is moved to the flake lockfile
-        #
-        # this is the commit hash pinned in our shell.nix
-        # Commit hash as of 2022-08-16
-        # `git ls-remote https://github.com/nixos/nixpkgs nixos-unstable`
-        nixpkgs.url = "github:NixOS/nixpkgs/af9e00071d0971eb292fd5abef334e66eda3cb69";
+        # master branch can be slow because not all binaries are built and populated in the cache.
+        # using the nixpkgs-unstable tag ensures everything has been built and populated in the cache.
+        # https://www.reddit.com/r/NixOS/comments/ydr4po/comment/itv6oqo/?utm_source=reddit&utm_medium=web2x&context=3
+        nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
         flake-utils.url = "github:numtide/flake-utils";
     };
@@ -17,6 +15,14 @@
         let pkgs = nixpkgs.legacyPackages.${system};
 
         in {
+            defaultPackage = pkgs.buildEnv {
+                name="devbox-shell-env";
+                paths = [
+                  {{- range .DevPackages}}
+                    pkgs.{{.}}
+                  {{end -}}
+                ];
+            };
             devShell = pkgs.mkShell {
               shellHook =
                 ''
@@ -41,12 +47,19 @@
                   export "PATH=$PATH:$PARENT_PATH"
 
                   {{ if debug }}
+                  echo "pwd is: $(pwd)"
+                  echo "PARENT_PATH=$PARENT_PATH"
                   echo "PATH=$PATH"
                   {{- end }}
+
+                  # exec env "SHELL=/bin/zsh" "ZDOTDIR=/var/folders/zv/r3sx92_94gq86_rq3yn1ky2h0000gn/T/devbox3840985630" /bin/zsh
                 '';
+
+              # We do not need to install these because we do `nix profile install`
+              # using the defaultPackages above.
               buildInputs = [
                   {{- range .DevPackages}}
-                    pkgs.{{.}}
+                    # pkgs.{{.}}
                   {{end -}}
               ];
             };

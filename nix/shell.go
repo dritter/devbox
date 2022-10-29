@@ -15,6 +15,7 @@ import (
 
 	"github.com/pkg/errors"
 	"go.jetpack.io/devbox/debug"
+	"go.jetpack.io/devbox/pkg/gate"
 )
 
 //go:embed shellrc.tmpl
@@ -42,6 +43,7 @@ type Shell struct {
 	// UserInitHook contains commands that will run at shell startup.
 	UserInitHook string
 
+	configDir string
 	// profileDir is the absolute path to the directory storing the nix-profile
 	profileDir  string
 	historyFile string
@@ -113,6 +115,12 @@ func WithHistoryFile(historyFile string) ShellOption {
 	}
 }
 
+func WithConfigDir(dir string) ShellOption {
+	return func(s *Shell) {
+		s.configDir = dir
+	}
+}
+
 // rcfilePath returns the absolute path for an rcfile, which is usually in the
 // user's home directory. It doesn't guarantee that the file exists.
 func rcfilePath(basename string) string {
@@ -142,6 +150,24 @@ func (s *Shell) Run(nixShellFilePath string) error {
 		// inside the devbox shell.
 		"__ETC_PROFILE_NIX_SOURCED=1",
 	)
+
+	if gate.Flakes() {
+		if s.binPath == "" {
+			return errors.New("Unsupported for flakes: shell having no binPath")
+		}
+		cmd := exec.Command("nix", "develop", ".devbox/gen/flake")
+		cmd.Args = append(cmd.Args, "--verbose")
+		cmd.Args = append(cmd.Args, "--ignore-environment")
+		cmd.Args = append(cmd.Args, "--command", "/bin/bash", "-c", s.execCommand())
+		cmd.Args = append(cmd.Args, toKeepArgs(env)...)
+		cmd.Env = env
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		debug.Log("Executing nix develop command: %v", cmd.Args)
+		return errors.WithStack(cmd.Run())
+	}
 
 	// Launch a fallback shell if we couldn't find the path to the user's
 	// default shell.
